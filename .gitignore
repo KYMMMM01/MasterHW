@@ -1,0 +1,46 @@
+# Unreal Engine 표준 .gitignore
+
+# 빌드 산출물
+Binaries/
+Build/
+Intermediate/
+DerivedDataCache/
+Saved/
+
+# IDE 캐시
+.vs/
+.vscode/
+.idea/
+
+# Visual Studio
+*.suo
+*.user
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+
+# Rider
+*.sln.iml
+
+# 컴파일 산출물
+*.pdb
+*.obj
+*.pch
+*.ipch
+*.opt
+*.aps
+
+# UE 자동 생성 (재생성 가능)
+*.sln
+*.xcodeproj
+*.xcworkspace
+
+# 백업/임시
+*.bak
+*.tmp
+*~
+
+# 큰 콘텐츠 (선택 사항)
+# StarterContent를 포함하려면 아래 줄 제거 + Git LFS 설정
+Content/StarterContent/
