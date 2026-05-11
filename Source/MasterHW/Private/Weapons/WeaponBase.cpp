@@ -1,55 +1,38 @@
 #include "Weapons/WeaponBase.h"
-#include "Kismet/GameplayStatics.h"
-#include "Kismet/KismetSystemLibrary.h"
+#include "Components/ArrowComponent.h"
+#include "TimerManager.h"
 
 AWeaponBase::AWeaponBase()
 {
 	PrimaryActorTick.bCanEverTick = false;
+
+	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
+	RootComponent = Root;
+
+	//총구 위치/방향. 블루프린트 자식에서 위치 조절 가능
+	FirePoint = CreateDefaultSubobject<UArrowComponent>(TEXT("FirePoint"));
+	FirePoint->SetupAttachment(RootComponent);
+
 	DamageTypeClass = UDamageType::StaticClass();
 }
 
-bool AWeaponBase::CanFire() const
+void AWeaponBase::BeginPlay()
 {
-	UWorld* World = GetWorld();
-	if (!World || FireRate <= 0.f) return true;
-	return (World->GetTimeSeconds() - LastFireTime) >= (1.f / FireRate);
+	Super::BeginPlay();
+	CurrentAmmo = MaxAmmo;
 }
 
-void AWeaponBase::Fire(AController* EventInstigator, FVector StartPos, FVector Direction)
+void AWeaponBase::Fire(AController* /*EventInstigator*/, FVector /*StartPos*/, FVector /*Direction*/)
 {
-	if (!CanFire()) return;
-	LastFireTime = GetWorld()->GetTimeSeconds();
+	//부모는 쿨다운만 시작 - 실제 발사 흐름은 자식(WeaponTemplate)이 정의
+	bCanFire = false;
+	const float Delay = 1.f / FMath::Max(FireRate, 0.01f);
+	GetWorld()->GetTimerManager().SetTimer(
+		TimerFireDelay, this, &AWeaponBase::HandleFireDelay, Delay, false);
+}
 
-	TArray<AActor*> ActorsToIgnore;
-	if (EventInstigator && EventInstigator->GetPawn())
-		ActorsToIgnore.Add(EventInstigator->GetPawn());
-
-	FHitResult HitResult;
-	bool bHit = UKismetSystemLibrary::LineTraceSingle(
-		this,
-		StartPos,
-		StartPos + Direction.GetSafeNormal() * Range,
-		UEngineTypes::ConvertToTraceType(ECC_Visibility),
-		false,
-		ActorsToIgnore,
-		EDrawDebugTrace::ForDuration,
-		HitResult,
-		true,
-		FLinearColor::Red,
-		FLinearColor::Green,
-		2.f
-	);
-
-	if (bHit && HitResult.GetActor())
-	{
-		UGameplayStatics::ApplyPointDamage(
-			HitResult.GetActor(),
-			Damage,
-			Direction,
-			HitResult,
-			EventInstigator,
-			this,
-			DamageTypeClass
-		);
-	}
+void AWeaponBase::HandleFireDelay()
+{
+	GetWorld()->GetTimerManager().ClearTimer(TimerFireDelay);
+	bCanFire = true;
 }
