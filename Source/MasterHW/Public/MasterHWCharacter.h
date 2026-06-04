@@ -13,6 +13,7 @@ class UCameraComponent;
 class UInputMappingContext;
 class UInputAction;
 class UHealthComponent;
+class UHealthBarWidget;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -59,9 +60,14 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat")
 	float RespawnDelay = 3.f;
 
+	//에디터에서 WBP_HealthBar 로 지정할 위젯 클래스
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<UHealthBarWidget> HealthBarClass;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
@@ -93,6 +99,9 @@ private:
 	TObjectPtr<AController> DeadController = nullptr;
 
 	FTimerHandle RespawnTimerHandle;
+
+	UPROPERTY()
+	TObjectPtr<UHealthBarWidget> HealthBarWidget;
 
 public:
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }

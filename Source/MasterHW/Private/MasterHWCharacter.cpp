@@ -15,7 +15,9 @@
 #include "GameFramework/PlayerController.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "TimerManager.h"
+#include "Blueprint/UserWidget.h"
 #include "DELEGATE/HealthComponent.h"
+#include "UI/HealthBarWidget.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -58,6 +60,25 @@ void AMasterHWCharacter::BeginPlay()
 	if (HealthComp)
 	{
 		HealthComp->OnHealthDead.AddDynamic(this, &AMasterHWCharacter::HandleDeath);
+	}
+
+	//로컬 플레이어만 체력바 UI 생성
+	if (IsLocallyControlled() && HealthBarClass)
+	{
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			HealthBarWidget = CreateWidget<UHealthBarWidget>(PC, HealthBarClass);
+			if (HealthBarWidget)
+			{
+				HealthBarWidget->AddToViewport();
+				if (HealthComp)
+				{
+					HealthComp->OnHealthDamaged.AddDynamic(HealthBarWidget, &UHealthBarWidget::UpdateHealth);
+					//초기 체력바 채우기
+					HealthBarWidget->UpdateHealth(HealthComp->GetCurrentHealth(), HealthComp->GetMaxHealth(), 0.f);
+				}
+			}
+		}
 	}
 
 	if (DefaultWeaponClass)
@@ -241,4 +262,15 @@ void AMasterHWCharacter::Respawn()
 
 	//시체(이 액터) 제거
 	Destroy();
+}
+
+void AMasterHWCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	//리스폰/파괴 시 화면에서 위젯 제거 (중복 누적 방지)
+	if (HealthBarWidget)
+	{
+		HealthBarWidget->RemoveFromParent();
+		HealthBarWidget = nullptr;
+	}
+	Super::EndPlay(EndPlayReason);
 }

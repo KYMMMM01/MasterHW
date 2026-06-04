@@ -24,7 +24,7 @@ void UHealthComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	//UnrealMaster처럼 현재 HP를 화면에 계속 표시 (UI 붙이면 제거 가능)
+	//현재 HP를 화면에 계속 표시 (UI 붙이면 제거 가능)
 	if (GEngine)
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Green,
@@ -47,7 +47,7 @@ void UHealthComponent::DamageTake(AActor* DamagedActor, float Damage, const UDam
 	//UI 갱신
 	OnHealthDamaged.Broadcast(CurrentHealth, MaxHealth, FinalDamage);
 
-	//[임시 검증용] UI 붙이면 제거 가능
+	//[임시 검증용]
 	UE_LOG(LogTemp, Warning, TEXT("[Health] -%.1f => %.1f / %.1f"), FinalDamage, CurrentHealth, MaxHealth);
 
 	if (CurrentHealth <= 0.f)
