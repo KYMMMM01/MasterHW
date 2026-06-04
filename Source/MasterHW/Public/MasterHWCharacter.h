@@ -12,6 +12,7 @@ class USpringArmComponent;
 class UCameraComponent;
 class UInputMappingContext;
 class UInputAction;
+class UHealthComponent;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -46,18 +47,17 @@ class AMasterHWCharacter : public ACharacter
 public:
 	AMasterHWCharacter();
 
-	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent,
-		class AController* EventInstigator, AActor* DamageCauser) override;
-
 	//BeginPlay에서 이 클래스의 무기를 스폰한다 (블루프린트에서 BP_Shotgun 등으로 설정)
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
 	TSubclassOf<AWeaponBase> DefaultWeaponClass;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat")
-	float MaxHP = 100.f;
+	//체력/사망 델리게이트를 처리하는 컴포넌트
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	TObjectPtr<UHealthComponent> HealthComp;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Combat")
-	float CurrentHP = 100.f;
+	//사망 후 리스폰까지 대기 시간(초)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat")
+	float RespawnDelay = 3.f;
 
 protected:
 	virtual void BeginPlay() override;
@@ -66,6 +66,17 @@ protected:
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
 	void Fire();
+
+	//테스트용 콘솔 명령: 플레이 중 콘솔(~)을 열고 "DebugDamage" 입력 (예: DebugDamage 100)
+	UFUNCTION(Exec)
+	void DebugDamage(float Amount = 25.f);
+
+	//OnHealthDead에 바인딩 => UFUNCTION 필수
+	UFUNCTION()
+	void HandleDeath(AController* DeathInstigator);
+
+	//리스폰 처리(타이머 콜백)
+	void Respawn();
 
 	virtual void NotifyControllerChanged() override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
@@ -76,6 +87,12 @@ private:
 
 	//아직 회복되지 않은 반동 누적값
 	FVector2D RecoilAccum = FVector2D::ZeroVector;
+
+	//사망 시점의 컨트롤러(리스폰 대상)
+	UPROPERTY()
+	TObjectPtr<AController> DeadController = nullptr;
+
+	FTimerHandle RespawnTimerHandle;
 
 public:
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }

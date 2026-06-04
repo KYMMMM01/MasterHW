@@ -9,6 +9,13 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "Engine/DamageEvents.h"
+#include "Kismet/GameplayStatics.h"
+#include "GameFramework/DamageType.h"
+#include "GameFramework/GameModeBase.h"
+#include "GameFramework/PlayerController.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "TimerManager.h"
+#include "DELEGATE/HealthComponent.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -39,13 +46,19 @@ AMasterHWCharacter::AMasterHWCharacter()
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
+
+	//체력 컴포넌트 부착
+	HealthComp = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComp"));
 }
 
 void AMasterHWCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	CurrentHP = MaxHP;
+	if (HealthComp)
+	{
+		HealthComp->OnHealthDead.AddDynamic(this, &AMasterHWCharacter::HandleDeath);
+	}
 
 	if (DefaultWeaponClass)
 	{
@@ -173,21 +186,59 @@ void AMasterHWCharacter::Fire()
 	RecoilAccum.Y += Yaw;
 }
 
-float AMasterHWCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
-	AController* EventInstigator, AActor* DamageCauser)
+void AMasterHWCharacter::DebugDamage(float Amount)
 {
-	float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+	//테스트용: 자신에게 데미지 => OnTakeAnyDamage => HealthComponent가 처리
+	UGameplayStatics::ApplyDamage(this, Amount, GetController(), this, UDamageType::StaticClass());
+}
 
-	CurrentHP = FMath::Max(0.f, CurrentHP - ActualDamage);
+void AMasterHWCharacter::HandleDeath(AController* DeathInstigator)
+{
+	//리스폰 대상 컨트롤러 기억
+	DeadController = GetController();
 
-	UE_LOG(LogTemplateCharacter, Warning,
-		TEXT("[%s] %.1f 데미지 | HP: %.1f / %.1f"),
-		*GetName(), ActualDamage, CurrentHP, MaxHP);
-
-	if (CurrentHP <= 0.f)
+	//입력 차단 + 데스 캠(죽는 동안 카메라가 쓰러진 몸을 보도록)
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
 	{
-		UE_LOG(LogTemplateCharacter, Warning, TEXT("[%s] 사망"), *GetName());
+		DisableInput(PC);
+		PC->SetViewTargetWithBlend(this, 0.3f);
 	}
 
-	return ActualDamage;
+	//이동 정지
+	GetCharacterMovement()->DisableMovement();
+
+	//캡슐 콜리전 끄고 메시 래그돌
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetMesh()->SetCollisionProfileName(TEXT("Ragdoll"));
+	GetMesh()->SetSimulatePhysics(true);
+
+	//컨트롤러 분리(리스폰 때 새 폰을 빙의시키기 위해)
+	if (DeadController)
+	{
+		DeadController->UnPossess();
+	}
+
+	//일정 시간 후 리스폰
+	GetWorldTimerManager().SetTimer(RespawnTimerHandle, this, &AMasterHWCharacter::Respawn, RespawnDelay, false);
+}
+
+void AMasterHWCharacter::Respawn()
+{
+	//GameMode에 리스폰 요청(PlayerStart에서 새 캐릭터 스폰 후 빙의)
+	if (DeadController)
+	{
+		if (AGameModeBase* GM = GetWorld()->GetAuthGameMode())
+		{
+			GM->RestartPlayer(DeadController);
+		}
+	}
+
+	//손에 든 무기 제거
+	if (CurrentWeapon)
+	{
+		CurrentWeapon->Destroy();
+	}
+
+	//시체(이 액터) 제거
+	Destroy();
 }
